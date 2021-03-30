@@ -26,7 +26,7 @@ def create_endpoint_from_model(
         callable: fastapi route which may be added to a router/application
     """
 
-    def _endpoint(
+    async def _endpoint(
         request: Request,
         request_data: request_model,  # type:ignore
     ):
@@ -55,7 +55,7 @@ def create_endpoint_with_depends(
         callable: fastapi route which may be added to a router/application
     """
 
-    def _endpoint(
+    async def _endpoint(
         request: Request,
         request_data: request_model = Depends(),  # type:ignore
     ):
