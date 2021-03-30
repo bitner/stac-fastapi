@@ -21,7 +21,7 @@ extra_reqs = {
     "pgstac": ["stac-fastapi-pgstac"],
     "sqlalchemy": ["stac-fastapi-sqlalchemy"],
     "dev": ["pytest", "pytest-cov", "pytest-asyncio", "pre-commit", "requests"],
-    "docs": ["mkdocs", "mkdocs-material"],
+    "docs": ["mkdocs", "mkdocs-material", "pdocs"],
 }
 
 

@@ -1,5 +1,5 @@
 """fastapi app creation."""
-from typing import Any, Dict, List, Optional, Type
+from typing import Any, Callable, Dict, List, Optional, Type
 
 import attr
 from fastapi import APIRouter, FastAPI
@@ -16,10 +16,7 @@ from stac_fastapi.api.models import (
     SearchGetRequest,
     _create_request_model,
 )
-from stac_fastapi.api.routes import (
-    create_endpoint_from_model,
-    create_endpoint_with_depends,
-)
+from stac_fastapi.api.routes import create_endpoint
 
 # TODO: make this module not depend on `stac_fastapi.extensions`
 from stac_fastapi.extensions.core import FieldsExtension
@@ -60,6 +57,7 @@ class StacApi:
         default=attr.Factory(lambda: DEFAULT_STATUS_CODES)
     )
     app: FastAPI = attr.ib(default=attr.Factory(FastAPI))
+    endpoint_factory: Callable = attr.ib(default=create_endpoint)
 
     def get_extension(self, extension: Type[ApiExtension]) -> Optional[ApiExtension]:
         """Get an extension.
@@ -102,9 +100,7 @@ class StacApi:
             response_model_exclude_unset=True,
             response_model_exclude_none=True,
             methods=["GET"],
-            endpoint=create_endpoint_with_depends(
-                self.client.landing_page, EmptyRequest
-            ),
+            endpoint=self.endpoint_factory(self.client.landing_page, EmptyRequest),
         )
         router.add_api_route(
             name="Conformance Classes",
@@ -113,9 +109,7 @@ class StacApi:
             response_model_exclude_unset=True,
             response_model_exclude_none=True,
             methods=["GET"],
-            endpoint=create_endpoint_with_depends(
-                self.client.conformance, EmptyRequest
-            ),
+            endpoint=self.endpoint_factory(self.client.conformance, EmptyRequest),
         )
         router.add_api_route(
             name="Get Item",
@@ -124,7 +118,7 @@ class StacApi:
             response_model_exclude_unset=True,
             response_model_exclude_none=True,
             methods=["GET"],
-            endpoint=create_endpoint_with_depends(self.client.get_item, ItemUri),
+            endpoint=self.endpoint_factory(self.client.get_item, ItemUri),
         )
         router.add_api_route(
             name="Search",
@@ -133,7 +127,7 @@ class StacApi:
             response_model_exclude_unset=True,
             response_model_exclude_none=True,
             methods=["POST"],
-            endpoint=create_endpoint_from_model(
+            endpoint=self.endpoint_factory(
                 self.client.post_search, search_request_model
             ),
         ),
@@ -144,9 +138,7 @@ class StacApi:
             response_model_exclude_unset=True,
             response_model_exclude_none=True,
             methods=["GET"],
-            endpoint=create_endpoint_with_depends(
-                self.client.get_search, SearchGetRequest
-            ),
+            endpoint=self.endpoint_factory(self.client.get_search, SearchGetRequest),
         )
         router.add_api_route(
             name="Get Collections",
@@ -155,9 +147,7 @@ class StacApi:
             response_model_exclude_unset=True,
             response_model_exclude_none=True,
             methods=["GET"],
-            endpoint=create_endpoint_with_depends(
-                self.client.all_collections, EmptyRequest
-            ),
+            endpoint=self.endpoint_factory(self.client.all_collections, EmptyRequest),
         )
         router.add_api_route(
             name="Get Collection",
@@ -166,9 +156,7 @@ class StacApi:
             response_model_exclude_unset=True,
             response_model_exclude_none=True,
             methods=["GET"],
-            endpoint=create_endpoint_with_depends(
-                self.client.get_collection, CollectionUri
-            ),
+            endpoint=self.endpoint_factory(self.client.get_collection, CollectionUri),
         )
         router.add_api_route(
             name="Get ItemCollection",
@@ -177,7 +165,7 @@ class StacApi:
             response_model_exclude_unset=True,
             response_model_exclude_none=True,
             methods=["GET"],
-            endpoint=create_endpoint_with_depends(
+            endpoint=self.endpoint_factory(
                 self.client.item_collection, ItemCollectionUri
             ),
         )
