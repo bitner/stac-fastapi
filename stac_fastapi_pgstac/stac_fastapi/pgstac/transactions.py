@@ -3,143 +3,125 @@
 import json
 import logging
 from typing import Dict, Optional, Type
-
+from buildpg import render
 import attr
 
 # TODO: This import should come from `backend` module
 from stac_fastapi.extensions.third_party.bulk_transactions import (
     BaseBulkTransactionsClient,
 )
-from stac_fastapi.sqlalchemy.models import database, schemas
+from stac_fastapi.pgstac.models import schemas
 from stac_fastapi.sqlalchemy.session import Session
 from stac_fastapi.types.core import BaseTransactionsClient
 from stac_fastapi.types.errors import NotFoundError
+from stac_pydantic import Collection, Item, ItemCollection
+from stac_fastapi.pgstac.models.links import CollectionLinks, ItemLinks, PagingLinks
 
-logger = logging.getLogger(__name__)
-
+logger = logging.getLogger("uvicorn")
+logger.setLevel(logging.INFO)
 
 @attr.s
 class TransactionsClient(BaseTransactionsClient):
     """Transactions extension specific CRUD operations."""
 
-    session: Session = attr.ib(default=attr.Factory(Session.create_from_env))
-    collection_table: Type[database.Collection] = attr.ib(default=database.Collection)
-    item_table: Type[database.Item] = attr.ib(default=database.Item)
-
-    def create_item(self, model: schemas.Item, **kwargs) -> schemas.Item:
+    async def create_item(self, item: schemas.Item = None, **kwargs) -> Item:
         """Create item."""
-        data = self.item_table.from_schema(model)
-        with self.session.writer.context_session() as session:
-            session.add(data)
-            data.base_url = str(kwargs["request"].base_url)
-            return schemas.Item.from_orm(data)
+        request = kwargs["request"]
+        pool = request.app.state.readpool
+        async with pool.acquire() as conn:
+            q, p = render(
+                """
+                SELECT * FROM create_item(:item::text::jsonb);
+                """,
+                item=item.json(),
+            )
+            outitem = await conn.fetch(q, *p)
+            logger.info(outitem)
+            feature = Item.construct(**outitem)
+            feature.links = await ItemLinks(
+                collection_id=feature.collection,
+                item_id=feature.id,
+                request=request,
+            ).get_links(extra_links=feature.links)
+            logger.info(feature)
+        return feature
 
-    def create_collection(
-        self, model: schemas.Collection, **kwargs
+    async def create_collection(
+        self, collection: schemas.Collection, **kwargs
     ) -> schemas.Collection:
         """Create collection."""
-        data = self.collection_table.from_schema(model)
-        with self.session.writer.context_session() as session:
-            session.add(data)
-            data.base_url = str(kwargs["request"].base_url)
-            return schemas.Collection.from_orm(data)
-
-    def update_item(self, model: schemas.Item, **kwargs) -> schemas.Item:
-        """Update item."""
-        with self.session.reader.context_session() as session:
-            query = session.query(self.item_table).filter(
-                self.item_table.id == model.id
+        request = kwargs["request"]
+        pool = request.app.state.readpool
+        async with pool.acquire() as conn:
+            q, p = render(
+                """
+                SELECT * FROM create_collections(:collection::text::jsonb);
+                """,
+                collection=collection.json(),
             )
-            if not query.scalar():
-                raise NotFoundError(f"Item {model.id} not found")
-            # SQLAlchemy orm updates don't seem to like geoalchemy types
-            data = self.item_table.get_database_model(model)
-            data.pop("geometry", None)
-            query.update(data)
+            out = await conn.fetch(q, *p)
+            logger.info(out)
+            newcollection = out[0]
+        return newcollection
 
-            response = self.item_table.from_schema(model)
-            response.base_url = str(kwargs["request"].base_url)
-            return schemas.Item.from_orm(response)
-        return model
+    async def update_item(self, model: schemas.Item, **kwargs) -> schemas.Item:
+        """Update item."""
+        return await self.create_item(model, **kwargs)
 
-    def update_collection(
+    async def update_collection(
         self, model: schemas.Collection, **kwargs
     ) -> schemas.Collection:
         """Update collection."""
-        with self.session.reader.context_session() as session:
-            query = session.query(self.collection_table).filter(
-                self.collection_table.id == model.id
-            )
-            if not query.scalar():
-                raise NotFoundError(f"Item {model.id} not found")
-            # SQLAlchemy orm updates don't seem to like geoalchemy types
-            data = self.collection_table.get_database_model(model)
-            data.pop("geometry", None)
-            query.update(data)
-        return model
+        return await self.create_collection(model, **kwargs)
 
-    def delete_item(self, id: str, **kwargs) -> schemas.Item:
+    async def delete_item(self, id: str, **kwargs) -> schemas.Item:
         """Delete item."""
-        with self.session.writer.context_session() as session:
-            query = session.query(self.item_table).filter(self.item_table.id == id)
-            data = query.first()
-            if not data:
-                raise NotFoundError(f"Item {id} not found")
-            query.delete()
-            data.base_url = str(kwargs["request"].base_url)
-            return schemas.Item.from_orm(data)
-
-    def delete_collection(self, id: str, **kwargs) -> schemas.Collection:
-        """Delete collection."""
-        with self.session.writer.context_session() as session:
-            query = session.query(self.collection_table).filter(
-                self.collection_table.id == id
+        request = kwargs["request"]
+        pool = request.app.state.readpool
+        async with pool.acquire() as conn:
+            q, p = render(
+                """
+                DELETE FROM items WHERE id = :id
+                RETURNING *
+                """,
+                id=id,
             )
-            data = query.first()
-            if not data:
-                raise NotFoundError(f"Collection {id} not found")
-            query.delete()
-            data.base_url = str(kwargs["request"].base_url)
-            return schemas.Collection.from_orm(data)
+            feature = await conn.fetchval(q, *p)
+            logger.info(feature)
+            feature = Item.construct(**feature)
+            feature.links = await ItemLinks(
+                collection_id=feature.collection,
+                item_id=feature.id,
+                request=request,
+            ).get_links()
+        return feature
+
+    async def delete_collection(self, id: str, **kwargs) -> schemas.Collection:
+        """Delete collection."""
+        request = kwargs["request"]
+        pool = request.app.state.readpool
+        async with pool.acquire() as conn:
+            q, p = render(
+                """
+                DELETE FROM collections WHERE id = :id
+                RETURNING *
+                """,
+                id=id,
+            )
+            collection = await conn.fetchval(q, *p)
+
+        return feature
+
 
 
 @attr.s
 class BulkTransactionsClient(BaseBulkTransactionsClient):
     """Postgres bulk transactions."""
 
-    session: Session = attr.ib(default=attr.Factory(Session.create_from_env))
-    debug: bool = attr.ib(default=False)
-
-    def __attrs_post_init__(self):
-        """Create sqlalchemy engine."""
-        self.engine = self.session.writer.cached_engine
-
-    @staticmethod
-    def _preprocess_item(item: schemas.Item) -> Dict:
-        """Preprocess items to match data model.
-
-        # TODO: dedup with GetterDict logic (ref #58)
-        """
-        item = item.dict(exclude_none=True)
-        item["geometry"] = json.dumps(item["geometry"])
-        item["collection_id"] = item.pop("collection")
-        item["datetime"] = item["properties"].pop("datetime")
-        return item
-
     def bulk_item_insert(
         self, items: schemas.Items, chunk_size: Optional[int] = None, **kwargs
     ) -> str:
-        """Bulk item insertion using sqlalchemy core.
-
-        https://docs.sqlalchemy.org/en/13/faq/performance.html#i-m-inserting-400-000-rows-with-the-orm-and-it-s-really-slow
+        """
         """
         # Use items.items because schemas.Items is a model with an items key
-        processed_items = [self._preprocess_item(item) for item in items.items]
-        return_msg = f"Successfully added {len(processed_items)} items."
-        if chunk_size:
-            for chunk in self._chunks(processed_items, chunk_size):
-                self.engine.execute(database.Item.__table__.insert(), chunk)
-            return return_msg
-
-        self.engine.execute(database.Item.__table__.insert(), processed_items)
-        return return_msg
+        return None

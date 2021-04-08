@@ -1,5 +1,5 @@
 """transaction extension."""
-from typing import Callable
+from typing import Callable, Any
 
 import attr
 from fastapi import APIRouter, FastAPI
@@ -43,6 +43,7 @@ class TransactionExtension(ApiExtension):
             None
         """
         item_request_model = _create_request_model(Item)
+
         collection_request_model = _create_request_model(Collection)
 
         router = APIRouter()

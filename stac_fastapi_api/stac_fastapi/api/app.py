@@ -6,6 +6,8 @@ from fastapi import APIRouter, FastAPI
 from fastapi.openapi.utils import get_openapi
 from stac_pydantic import Collection, Item, ItemCollection
 from stac_pydantic.api import ConformanceClasses, LandingPage
+from pydantic import BaseModel
+from typing import Type
 
 from stac_fastapi.api.errors import DEFAULT_STATUS_CODES, add_exception_handlers
 from stac_fastapi.api.models import (
@@ -57,6 +59,7 @@ class StacApi:
         default=attr.Factory(lambda: DEFAULT_STATUS_CODES)
     )
     app: FastAPI = attr.ib(default=attr.Factory(FastAPI))
+    search_request_model: Type[BaseModel] = attr.ib(default=STACSearch)
     endpoint_factory: Callable = attr.ib(default=create_endpoint)
 
     def get_extension(self, extension: Type[ApiExtension]) -> Optional[ApiExtension]:
@@ -90,7 +93,7 @@ class StacApi:
         Returns:
             None
         """
-        search_request_model = _create_request_model(STACSearch)
+        search_request_model = _create_request_model(self.search_request_model)
         fields_ext = self.get_extension(FieldsExtension)
         router = APIRouter()
         router.add_api_route(

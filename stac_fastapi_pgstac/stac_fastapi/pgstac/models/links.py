@@ -33,11 +33,8 @@ def filter_links(links: List[Dict]) -> List[Dict]:
 def merge_params(url: str, newparams: Dict) -> str:
     u = urlparse(url)
     params = parse_qs(u.query)
-    logger.info(f'oldparams: {params} newparams: {newparams}')
     params.update(newparams)
-    logger.info(f'updated params: {params}')
     param_string = unquote(urlencode(params, True))
-    logger.info(f'param_string: {param_string}')
 
     href = ParseResult(
         scheme=u.scheme,
@@ -95,15 +92,11 @@ class BaseLinks:
         # join passed in links with generated links
         # and update relative paths
         links = self.create_links()
-        logger.info(f'get_links before checking extra {links}')
         if extra_links is not None and len(extra_links) >= 1:
-            logger.info(f'extra links orig: {extra_links}')
             for link in extra_links:
                 if link.rel not in INFERRED_LINK_RELS:
                     link.href=self.resolve(link.href)
                     links.append(link)
-            logger.info(f'after extra links: {links}')
-        logger.info(f"links: {links}")
         return links
 
 
@@ -124,11 +117,10 @@ class PagingLinks(BaseLinks):
                     method=method,
                     href=href,
                 )
-                logger.info(link)
                 return link
             if method == "POST":
                 body = self.request.postbody
-                body["token"] = f"prev:{self.next}"
+                body["token"] = f"next:{self.next}"
                 return PaginationLink(
                     rel=Relations.next,
                     type=MimeTypes.json,
@@ -249,7 +241,7 @@ class TileLinks:
             f"/collections/{self.collection_id}/items/{self.item_id}",
         )
 
-    def tiles(self) -> OGCTileLink:
+    def link_tiles(self) -> OGCTileLink:
         """Create tiles link."""
         return OGCTileLink(
             href=urljoin(
@@ -262,7 +254,7 @@ class TileLinks:
             templated=True,
         )
 
-    def viewer(self) -> OGCTileLink:
+    def link_viewer(self) -> OGCTileLink:
         """Create viewer link."""
         return OGCTileLink(
             href=urljoin(
@@ -273,7 +265,7 @@ class TileLinks:
             title="viewer",
         )
 
-    def tilejson(self) -> OGCTileLink:
+    def link_tilejson(self) -> OGCTileLink:
         """Create tilejson link."""
         return OGCTileLink(
             href=urljoin(
@@ -284,7 +276,7 @@ class TileLinks:
             title="tilejson",
         )
 
-    def wmts(self) -> OGCTileLink:
+    def link_wmts(self) -> OGCTileLink:
         """Create wmts capabilities link."""
         return OGCTileLink(
             href=urljoin(
@@ -295,7 +287,3 @@ class TileLinks:
             type=MimeTypes.xml,
             title="WMTS Capabilities",
         )
-
-    def create_links(self) -> List[OGCTileLink]:
-        """Return all inferred links."""
-        return [self.tiles(), self.tilejson(), self.wmts(), self.viewer()]

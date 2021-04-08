@@ -7,6 +7,9 @@ from starlette.requests import Request
 
 from stac_fastapi.api.models import APIRequest
 
+import logging
+logger = logging.getLogger("uvicorn")
+logger.setLevel(logging.INFO)
 
 def create_endpoint(
     func: Callable, request_model: Union[Type[APIRequest], Type[BaseModel]]
@@ -78,13 +81,14 @@ def create_async_endpoint(
     Returns:
         callable: fastapi route which may be added to a router/application
     """
+    logger.info(f"request model: {func} {request_model}")
     if issubclass(request_model, APIRequest):
-
         async def _endpoint(
             request: Request,
             request_data: request_model = Depends(),  # type:ignore
         ):
             """Endpoint."""
+            logger.info(f"in apirequest submodel request:{request} request_data:{request_data}")
             resp = await func(
                 request=request, **request_data.kwargs()  # type:ignore
             )
@@ -97,6 +101,7 @@ def create_async_endpoint(
             request_data: request_model,  # type:ignore
         ):
             """Endpoint."""
+            logger.info(f"in apirequest submodel request:{request} request_data:{request_data}")
             resp = await func(request_data, request=request)
             return resp
 
