@@ -93,13 +93,14 @@ class CoreCrudClient(BaseCoreClient):
         """Read all collections from the database."""
         pool = kwargs["request"].app.state.readpool
         async with pool.acquire() as conn:
-            collections = await conn.fetch(
+            collections = await conn.fetchval(
                 """
                 SELECT * FROM all_collections();
                 """
             )
+            logger.info(collections)
 
-        return [Collection(**c[0]) for c in collections]
+        return [Collection(**c) for c in collections]
 
     async def get_collection(self, id: str, **kwargs) -> Collection:
         """Get collection by id.
