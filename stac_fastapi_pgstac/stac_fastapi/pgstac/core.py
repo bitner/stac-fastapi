@@ -3,6 +3,7 @@ import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
 from urllib.parse import urlencode, urljoin
+import re
 
 import attr
 from buildpg import render
@@ -98,7 +99,6 @@ class CoreCrudClient(BaseCoreClient):
                 SELECT * FROM all_collections();
                 """
             )
-            logger.info(collections)
 
         return [Collection(**c) for c in collections]
 
@@ -170,7 +170,6 @@ class CoreCrudClient(BaseCoreClient):
         if collection.features is None or len(collection.features) == 0:
             raise NotFoundError("No features found")
         for feature in collection.features:
-            logger.info(feature)
             feature = Item.construct(**feature)
             links = await ItemLinks(
                 collection_id=feature.collection,
@@ -230,7 +229,6 @@ class CoreCrudClient(BaseCoreClient):
         """
         req = PgstacSearch(ids=[id], limit=1)
         collection = await self.search_base(req, **kwargs)
-        logger.info(collection)
         return collection.features[0]
 
     async def post_search(
@@ -248,10 +246,8 @@ class CoreCrudClient(BaseCoreClient):
         """
 
         request = kwargs["request"]
-        logger.info(request)
         base_url = str(request.base_url)
         url = str(request.url)
-        logger.info(url)
         collection = await self.search_base(search_request, **kwargs)
         return collection.dict(exclude_none=True)
 
@@ -294,10 +290,12 @@ class CoreCrudClient(BaseCoreClient):
             # https://github.com/radiantearth/stac-spec/tree/master/api-spec/extensions/sort#http-get-or-post-form
             sort_param = []
             for sort in sortby:
+                sortparts = re.match(r'^([+-]?)(.*)$',sort)
+
                 sort_param.append(
                     {
-                        "field": sort[1:],
-                        "direction": "asc" if sort[0] == "+" else "desc",
+                        "field": sortparts.group(2).strip(),
+                        "direction": "desc" if sortparts.group(1) == "-" else "asc",
                     }
                 )
             base_args["sortby"] = sort_param
