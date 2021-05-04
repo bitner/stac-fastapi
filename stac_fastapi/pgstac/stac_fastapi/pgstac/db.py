@@ -55,6 +55,7 @@ async def connect_to_db(app: FastAPI) -> None:
     logger.info("Connection to write pool established")
 
 
+
 async def close_db_connection(app: FastAPI) -> None:
     """Close connection."""
     logger.info("Closing connections to database")
