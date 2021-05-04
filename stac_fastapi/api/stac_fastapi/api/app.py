@@ -187,7 +187,7 @@ class StacApi:
 
         # TODO: parametrize
         openapi_schema = get_openapi(
-            title="STAC FASTAPI", version="0.1", routes=self.app.routes
+            title="STAC FastAPI", version="0.1", routes=self.app.routes
         )
 
         self.app.openapi_schema = openapi_schema
