@@ -2,16 +2,15 @@
 import logging
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Union
-from urllib.parse import urlencode, urljoin
+from urllib.parse import urljoin
 import re
-
+import orjson
 import attr
 from buildpg import render
 from stac_pydantic import Collection, Item, ItemCollection
 from stac_pydantic.api import ConformanceClasses, LandingPage
 from stac_pydantic.shared import Link, MimeTypes, Relations
 
-from stac_fastapi.extensions.core import ContextExtension, FieldsExtension
 from stac_fastapi.pgstac.models.links import (
     CollectionLinks,
     ItemLinks,
@@ -249,9 +248,6 @@ class CoreCrudClient(BaseCoreClient):
             ItemCollection containing items which match the search criteria.
         """
 
-        request = kwargs["request"]
-        base_url = str(request.base_url)
-        url = str(request.url)
         collection = await self.search_base(search_request, **kwargs)
         return ORJSONResponse(collection.dict(exclude_none=True))
 
@@ -283,7 +279,7 @@ class CoreCrudClient(BaseCoreClient):
             "bbox": bbox,
             "limit": limit,
             "token": token,
-            "query": json.loads(query) if query else query,
+            "query": orjson.loads(query) if query else query,
         }
         logger.info(f"right after base args was set {base_args}")
         if datetime:
@@ -294,12 +290,14 @@ class CoreCrudClient(BaseCoreClient):
             # https://github.com/radiantearth/stac-spec/tree/master/api-spec/extensions/sort#http-get-or-post-form
             sort_param = []
             for sort in sortby:
-                sortparts = re.match(r'^([+-]?)(.*)$',sort)
+                sortparts = re.match(r"^([+-]?)(.*)$", sort)
 
                 sort_param.append(
                     {
                         "field": sortparts.group(2).strip(),
-                        "direction": "desc" if sortparts.group(1) == "-" else "asc",
+                        "direction": "desc"
+                        if sortparts.group(1) == "-"
+                        else "asc",
                     }
                 )
             base_args["sortby"] = sort_param

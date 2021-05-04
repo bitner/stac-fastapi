@@ -3,11 +3,16 @@ from typing import Any, Dict, List, Optional, Type
 
 import attr
 from fastapi import APIRouter, FastAPI
+from fastapi.middleware.gzip import GZipMiddleWare
+from fastapi.responses import ORJSONResponse
 from fastapi.openapi.utils import get_openapi
 from stac_pydantic import Collection, Item, ItemCollection
 from stac_pydantic.api import ConformanceClasses, LandingPage
 
-from stac_fastapi.api.errors import DEFAULT_STATUS_CODES, add_exception_handlers
+from stac_fastapi.api.errors import (
+    DEFAULT_STATUS_CODES,
+    add_exception_handlers,
+)
 from stac_fastapi.api.models import (
     CollectionUri,
     EmptyRequest,
@@ -30,22 +35,28 @@ from stac_fastapi.types.search import STACSearch
 class StacApi:
     """StacApi factory.
 
-    Factory for creating a STAC-compliant FastAPI application.  After instantation, the application is accessible from
+    Factory for creating a STAC-compliant FastAPI application.
+    After instantation, the application is accessible from
     the `StacApi.app` attribute.
 
     Attributes:
         settings:
-            API settings and configuration, potentially using environment variables.
+            API settings and configuration,
+            potentially using environment variables.
             See https://pydantic-docs.helpmanual.io/usage/settings/.
         client:
-            A subclass of `stac_api.clients.BaseCoreClient`.  Defines the application logic which is injected
+            A subclass of `stac_api.clients.BaseCoreClient`.
+            Defines the application logic which is injected
             into the API.
         extensions:
-            API extensions to include with the application.  This may include official STAC extensions as well as
+            API extensions to include with the application.
+            This may include official STAC extensions as well as
             third-party add ons.
         exceptions:
-            Defines a global mapping between exceptions and status codes, allowing configuration of response behavior on
-            certain exceptions (https://fastapi.tiangolo.com/tutorial/handling-errors/#install-custom-exception-handlers).
+            Defines a global mapping between exceptions and status codes,
+            allowing configuration of response behavior on
+            certain exceptions
+            (https://fastapi.tiangolo.com/tutorial/handling-errors/#install-custom-exception-handlers).
         app:
             The FastAPI application, defaults to a fresh application.
     """
@@ -58,7 +69,9 @@ class StacApi:
     )
     app: FastAPI = attr.ib(default=attr.Factory(FastAPI))
 
-    def get_extension(self, extension: Type[ApiExtension]) -> Optional[ApiExtension]:
+    def get_extension(
+        self, extension: Type[ApiExtension]
+    ) -> Optional[ApiExtension]:
         """Get an extension.
 
         Args:
@@ -99,9 +112,7 @@ class StacApi:
             response_model_exclude_unset=True,
             response_model_exclude_none=True,
             methods=["GET"],
-            endpoint=create_endpoint(
-                self.client.landing_page, EmptyRequest
-            ),
+            endpoint=create_endpoint(self.client.landing_page, EmptyRequest),
         )
         router.add_api_route(
             name="Conformance Classes",
@@ -110,9 +121,7 @@ class StacApi:
             response_model_exclude_unset=True,
             response_model_exclude_none=True,
             methods=["GET"],
-            endpoint=create_endpoint(
-                self.client.conformance, EmptyRequest
-            ),
+            endpoint=create_endpoint(self.client.conformance, EmptyRequest),
         )
         router.add_api_route(
             name="Get Item",
@@ -141,9 +150,7 @@ class StacApi:
             response_model_exclude_unset=True,
             response_model_exclude_none=True,
             methods=["GET"],
-            endpoint=create_endpoint(
-                self.client.get_search, SearchGetRequest
-            ),
+            endpoint=create_endpoint(self.client.get_search, SearchGetRequest),
         )
         router.add_api_route(
             name="Get Collections",
@@ -234,3 +241,6 @@ class StacApi:
 
         # customize openapi
         self.app.openapi = self.customize_openapi
+
+        # add gzip compression to output
+        self.app.add_middleware(GZipMiddleWare)

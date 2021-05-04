@@ -3,26 +3,27 @@ from buildpg import asyncpg
 import orjson
 
 from stac_fastapi.pgstac.config import Settings
+from fastapi import FastAPI
 
 settings = Settings()
 
-from fastapi import FastAPI
-
 logger = logging.getLogger(__name__)
+
 
 async def con_init(conn):
     await conn.set_type_codec(
-            "json",
-            encoder=orjson.dumps,
-            decoder=orjson.loads,
-            schema="pg_catalog",
-        )
+        "json",
+        encoder=orjson.dumps,
+        decoder=orjson.loads,
+        schema="pg_catalog",
+    )
     await conn.set_type_codec(
-            "jsonb",
-            encoder=orjson.dumps,
-            decoder=orjson.loads,
-            schema="pg_catalog",
-        )
+        "jsonb",
+        encoder=orjson.dumps,
+        decoder=orjson.loads,
+        schema="pg_catalog",
+    )
+
 
 async def connect_to_db(app: FastAPI) -> None:
     """Connect."""
@@ -36,7 +37,10 @@ async def connect_to_db(app: FastAPI) -> None:
         max_queries=settings.db_max_queries,
         max_inactive_connection_lifetime=settings.db_max_inactive_conn_lifetime,
         init=con_init,
-        server_settings={'search_path': 'pgstac,public', 'application_name': 'pgstac-reader'},
+        server_settings={
+            "search_path": "pgstac,public",
+            "application_name": "pgstac-reader",
+        },
     )
     logger.info("Connection to read pool established")
     logger.info(
@@ -50,10 +54,12 @@ async def connect_to_db(app: FastAPI) -> None:
         max_queries=settings.db_max_queries,
         max_inactive_connection_lifetime=settings.db_max_inactive_conn_lifetime,
         init=con_init,
-        server_settings={'search_path': 'pgstac,public', 'application_name': 'pgstac-writer'},
+        server_settings={
+            "search_path": "pgstac,public",
+            "application_name": "pgstac-writer",
+        },
     )
     logger.info("Connection to write pool established")
-
 
 
 async def close_db_connection(app: FastAPI) -> None:
@@ -66,8 +72,9 @@ async def close_db_connection(app: FastAPI) -> None:
 
 class DB:
     pool = None
+
     def __init__(
-        self, pool = None, kwargs=None, write: bool = False,
+        self, pool=None, kwargs=None, write: bool = False,
     ):
         if self.pool is None:
             if write is False:
