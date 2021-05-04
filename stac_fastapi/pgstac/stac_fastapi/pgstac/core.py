@@ -21,7 +21,7 @@ from stac_fastapi.types.core import BaseCoreClient
 from stac_fastapi.types.errors import NotFoundError
 from stac_fastapi.pgstac.types.search import PgstacSearch
 from time import time
-from fastapi.responses import JSONResponse
+from fastapi.responses import ORJSONResponse
 
 logger = logging.getLogger("uvicorn")
 logger.setLevel(logging.INFO)
@@ -33,7 +33,7 @@ NumType = Union[float, int]
 class CoreCrudClient(BaseCoreClient):
     """Client for core endpoints defined by stac."""
 
-    async def landing_page(self, **kwargs) -> LandingPage:
+    async def landing_page(self, **kwargs) -> ORJSONResponse:
         """Landing page.
 
         Called with `GET /`.
@@ -80,7 +80,7 @@ class CoreCrudClient(BaseCoreClient):
             coll_link.rel = Relations.child
             coll_link.title = coll.title
             landing_page.links.append(coll_link)
-        return landing_page
+        return ORJSONResponse(landing_page.dict())
 
     async def conformance(self, **kwargs) -> ConformanceClasses:
         """Conformance classes."""
@@ -102,11 +102,11 @@ class CoreCrudClient(BaseCoreClient):
             )
         return [Collection.construct(**c) for c in collections]
 
-    async def all_collections(self, **kwargs) -> JSONResponse:
+    async def all_collections(self, **kwargs) -> ORJSONResponse:
         collections = await self.all_collections_func(**kwargs)
-        return JSONResponse([c.dict() for c in collections])
+        return ORJSONResponse([c.dict() for c in collections])
 
-    async def get_collection(self, id: str, **kwargs) -> JSONResponse:
+    async def get_collection(self, id: str, **kwargs) -> ORJSONResponse:
         """Get collection by id.
 
         Called with `GET /collections/{collectionId}`.
@@ -131,7 +131,7 @@ class CoreCrudClient(BaseCoreClient):
             collection_id=id, request=request
         ).get_links()
         collection["links"] = links
-        return JSONResponse(Collection.construct(**collection).dict())
+        return ORJSONResponse(Collection.construct(**collection).dict())
 
     async def search_base(
         self, search_request: PgstacSearch, **kwargs
@@ -199,7 +199,7 @@ class CoreCrudClient(BaseCoreClient):
 
     async def item_collection(
         self, id: str, limit: int = 10, token: str = None, **kwargs
-    ) -> ItemCollection:
+    ) -> ORJSONResponse:
         """Get all items from a specific collection.
 
         Called with `GET /collections/{collectionId}/items`
@@ -218,9 +218,9 @@ class CoreCrudClient(BaseCoreClient):
             collection_id=id, request=kwargs["request"]
         ).get_links(extra_links=collection.links)
         collection.links = links
-        return collection.dict(exclude_none=True)
+        return ORJSONResponse(collection.dict(exclude_none=True))
 
-    async def get_item(self, id: str, **kwargs) -> Item:
+    async def get_item(self, id: str, **kwargs) -> ORJSONResponse:
         """Get item by id.
 
         Called with `GET /collections/{collectionId}/items/{itemId}`.
@@ -233,11 +233,11 @@ class CoreCrudClient(BaseCoreClient):
         """
         req = PgstacSearch(ids=[id], limit=1)
         collection = await self.search_base(req, **kwargs)
-        return collection.features[0]
+        return ORJSONResponse(collection.features[0])
 
     async def post_search(
         self, search_request: PgstacSearch, **kwargs
-    ) -> Dict[str, Any]:
+    ) -> ORJSONResponse:
         """Cross catalog search (POST).
 
         Called with `POST /search`.
@@ -253,7 +253,7 @@ class CoreCrudClient(BaseCoreClient):
         base_url = str(request.base_url)
         url = str(request.url)
         collection = await self.search_base(search_request, **kwargs)
-        return collection.dict(exclude_none=True)
+        return ORJSONResponse(collection.dict(exclude_none=True))
 
     async def get_search(
         self,
@@ -267,7 +267,7 @@ class CoreCrudClient(BaseCoreClient):
         fields: Optional[List[str]] = None,
         sortby: Optional[str] = None,
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> ORJSONResponse:
         """Cross catalog search (GET).
 
         Called with `GET /search`.
