@@ -91,12 +91,14 @@ class PgstacSearch(Search):
 
     # Make collections optional, default to searching all collections if none are provided
     collections: Optional[List[str]] = None
+    conf: Optional[Dict] = None
     ids: Optional[List[str]] = None
     # Override default field extension to include default fields and pydantic includes/excludes factory
     fields: FieldsExtension = Field(FieldsExtension())
     # Override query extension with supported operators
     query: Optional[Dict[str, Dict[Operator, Any]]]
     filter: Optional[Dict]
+    filter_lang: Optional[str] = Field(alias="filter-lang")
     token: Optional[str] = None
     datetime: Optional[str] = None
     sortby: Any
