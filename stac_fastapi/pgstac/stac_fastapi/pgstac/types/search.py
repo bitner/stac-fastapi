@@ -1,8 +1,8 @@
 """stac_fastapi.types.search module."""
 
-from typing import Dict, Field, Optional
+from typing import Dict, Optional
 
-from pydantic import validator
+from pydantic import Field, validator
 
 from stac_fastapi.types.search import BaseSearchPostRequest
 
