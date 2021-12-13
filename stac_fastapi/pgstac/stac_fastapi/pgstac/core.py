@@ -115,7 +115,7 @@ class CoreCrudClient(AsyncBaseCoreClient):
         pool = request.app.state.readpool
 
         # pool = kwargs["request"].app.state.readpool
-        req = search_request.json(exclude_none=True)
+        req = search_request.json(exclude_none=True, by_alias=True)
 
         try:
             async with pool.acquire() as conn:
@@ -185,7 +185,9 @@ class CoreCrudClient(AsyncBaseCoreClient):
         # If collection does not exist, NotFoundError wil be raised
         await self.get_collection(id, **kwargs)
 
-        req = PgstacSearch(collections=[id], limit=limit, token=token)
+        req = PgstacSearch(
+            collections=[id], filter_lang="cql-json", limit=limit, token=token
+        )
         item_collection = await self._search_base(req, **kwargs)
         links = await CollectionLinks(
             collection_id=id, request=kwargs["request"]
@@ -207,7 +209,7 @@ class CoreCrudClient(AsyncBaseCoreClient):
         # If collection does not exist, NotFoundError wil be raised
         await self.get_collection(collection_id, **kwargs)
 
-        req = PgstacSearch(ids=[item_id], limit=1)
+        req = PgstacSearch(ids=[item_id], limit=1, filter_lang="cql-json")
         item_collection = await self._search_base(req, **kwargs)
         if not item_collection["features"]:
             raise NotFoundError(f"Collection {collection_id} does not exist.")
