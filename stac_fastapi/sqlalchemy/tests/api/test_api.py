@@ -5,22 +5,41 @@ from ..conftest import MockStarletteRequest
 STAC_CORE_ROUTES = [
     "GET /",
     "GET /collections",
-    "GET /collections/{collectionId}",
-    "GET /collections/{collectionId}/items",
-    "GET /collections/{collectionId}/items/{itemId}",
+    "GET /collections/{collection_id}",
+    "GET /collections/{collection_id}/items",
+    "GET /collections/{collection_id}/items/{item_id}",
     "GET /conformance",
     "GET /search",
     "POST /search",
 ]
 
 STAC_TRANSACTION_ROUTES = [
-    "DELETE /collections/{collectionId}",
-    "DELETE /collections/{collectionId}/items/{itemId}",
+    "DELETE /collections/{collection_id}",
+    "DELETE /collections/{collection_id}/items/{item_id}",
     "POST /collections",
-    "POST /collections/{collectionId}/items",
+    "POST /collections/{collection_id}/items",
     "PUT /collections",
-    "PUT /collections/{collectionId}/items",
+    "PUT /collections/{collection_id}/items",
 ]
+
+
+def test_post_search_content_type(app_client):
+    params = {"limit": 1}
+    resp = app_client.post("search", json=params)
+    assert resp.headers["content-type"] == "application/geo+json"
+
+
+def test_get_search_content_type(app_client):
+    resp = app_client.get("search")
+    assert resp.headers["content-type"] == "application/geo+json"
+
+
+def test_api_headers(app_client):
+    resp = app_client.get("/api")
+    assert (
+        resp.headers["content-type"] == "application/vnd.oai.openapi+json;version=3.0"
+    )
+    assert resp.status_code == 200
 
 
 def test_core_router(api_client):
@@ -80,15 +99,65 @@ def test_app_fields_extension(load_test_data, app_client, postgres_transactions)
     assert list(resp_json["features"][0]["properties"]) == ["datetime"]
 
 
-def test_app_query_extension(load_test_data, app_client, postgres_transactions):
+def test_app_query_extension_gt(load_test_data, app_client, postgres_transactions):
     test_item = load_test_data("test_item.json")
     postgres_transactions.create_item(test_item, request=MockStarletteRequest)
 
-    params = {"query": {"proj:epsg": {"gt": test_item["properties"]["proj:epsg"] + 1}}}
+    params = {"query": {"proj:epsg": {"gt": test_item["properties"]["proj:epsg"]}}}
     resp = app_client.post("/search", json=params)
     assert resp.status_code == 200
     resp_json = resp.json()
     assert len(resp_json["features"]) == 0
+
+
+def test_app_query_extension_gte(load_test_data, app_client, postgres_transactions):
+    test_item = load_test_data("test_item.json")
+    postgres_transactions.create_item(test_item, request=MockStarletteRequest)
+
+    params = {"query": {"proj:epsg": {"gte": test_item["properties"]["proj:epsg"]}}}
+    resp = app_client.post("/search", json=params)
+    assert resp.status_code == 200
+    resp_json = resp.json()
+    assert len(resp_json["features"]) == 1
+
+
+def test_app_query_extension_limit_eq0(app_client):
+    params = {"limit": 0}
+    resp = app_client.post("/search", json=params)
+    assert resp.status_code == 400
+
+
+def test_app_query_extension_limit_lt0(
+    load_test_data, app_client, postgres_transactions
+):
+    item = load_test_data("test_item.json")
+    postgres_transactions.create_item(item, request=MockStarletteRequest)
+
+    params = {"limit": -1}
+    resp = app_client.post("/search", json=params)
+    assert resp.status_code == 400
+
+
+def test_app_query_extension_limit_gt10000(
+    load_test_data, app_client, postgres_transactions
+):
+    item = load_test_data("test_item.json")
+    postgres_transactions.create_item(item, request=MockStarletteRequest)
+
+    params = {"limit": 10001}
+    resp = app_client.post("/search", json=params)
+    assert resp.status_code == 400
+
+
+def test_app_query_extension_limit_10000(
+    load_test_data, app_client, postgres_transactions
+):
+    item = load_test_data("test_item.json")
+    postgres_transactions.create_item(item, request=MockStarletteRequest)
+
+    params = {"limit": 10000}
+    resp = app_client.post("/search", json=params)
+    assert resp.status_code == 200
 
 
 def test_app_sort_extension(load_test_data, app_client, postgres_transactions):
@@ -128,3 +197,76 @@ def test_search_invalid_date(load_test_data, app_client, postgres_transactions):
 
     resp = app_client.post("/search", json=params)
     assert resp.status_code == 400
+
+
+def test_search_point_intersects(load_test_data, app_client, postgres_transactions):
+    item = load_test_data("test_item.json")
+    postgres_transactions.create_item(item, request=MockStarletteRequest)
+
+    point = [150.04, -33.14]
+    intersects = {"type": "Point", "coordinates": point}
+
+    params = {
+        "intersects": intersects,
+        "collections": [item["collection"]],
+    }
+    resp = app_client.post("/search", json=params)
+    assert resp.status_code == 200
+    resp_json = resp.json()
+    assert len(resp_json["features"]) == 1
+
+
+def test_datetime_non_interval(load_test_data, app_client, postgres_transactions):
+    item = load_test_data("test_item.json")
+    postgres_transactions.create_item(item, request=MockStarletteRequest)
+    alternate_formats = [
+        "2020-02-12T12:30:22+00:00",
+        "2020-02-12T12:30:22.00Z",
+        "2020-02-12T12:30:22Z",
+        "2020-02-12T12:30:22.00+00:00",
+    ]
+    for date in alternate_formats:
+        params = {
+            "datetime": date,
+            "collections": [item["collection"]],
+        }
+
+        resp = app_client.post("/search", json=params)
+        assert resp.status_code == 200
+        resp_json = resp.json()
+        # datetime is returned in this format "2020-02-12T12:30:22+00:00"
+        assert resp_json["features"][0]["properties"]["datetime"][0:19] == date[0:19]
+
+
+def test_bbox_3d(load_test_data, app_client, postgres_transactions):
+    item = load_test_data("test_item.json")
+    postgres_transactions.create_item(item, request=MockStarletteRequest)
+
+    australia_bbox = [106.343365, -47.199523, 0.1, 168.218365, -19.437288, 0.1]
+    params = {
+        "bbox": australia_bbox,
+        "collections": [item["collection"]],
+    }
+    resp = app_client.post("/search", json=params)
+    assert resp.status_code == 200
+    resp_json = resp.json()
+    assert len(resp_json["features"]) == 1
+
+
+def test_search_line_string_intersects(
+    load_test_data, app_client, postgres_transactions
+):
+    item = load_test_data("test_item.json")
+    postgres_transactions.create_item(item, request=MockStarletteRequest)
+
+    line = [[150.04, -33.14], [150.22, -33.89]]
+    intersects = {"type": "LineString", "coordinates": line}
+
+    params = {
+        "intersects": intersects,
+        "collections": [item["collection"]],
+    }
+    resp = app_client.post("/search", json=params)
+    assert resp.status_code == 200
+    resp_json = resp.json()
+    assert len(resp_json["features"]) == 1

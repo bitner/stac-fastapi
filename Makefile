@@ -50,6 +50,10 @@ run-database:
 run-joplin-sqlalchemy:
 	docker-compose run --rm loadjoplin-sqlalchemy
 
+.PHONY: run-joplin-pgstac
+run-joplin-pgstac:
+	docker-compose run --rm loadjoplin-pgstac
+
 .PHONY: test
 test: test-sqlalchemy test-pgstac
 
@@ -67,3 +71,13 @@ pgstac-install: pybase-install
 .PHONY: sqlalchemy-install
 sqlalchemy-install: pybase-install
 	pip install -e ./stac_fastapi/sqlalchemy[dev,server]
+
+.PHONY: docs-image
+docs-image:
+	docker-compose -f docker-compose.docs.yml \
+		build
+
+.PHONY: docs
+docs: docs-image
+	docker-compose -f docker-compose.docs.yml \
+		run docs
