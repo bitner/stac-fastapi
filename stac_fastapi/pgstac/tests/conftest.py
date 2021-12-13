@@ -42,7 +42,11 @@ async def pg():
     try:
         await conn.execute("CREATE DATABASE pgstactestdb;")
         await conn.execute(
-            "ALTER DATABASE pgstactestdb SET search_path to pgstac, public;"
+            """
+            ALTER DATABASE pgstactestdb SET search_path to pgstac, public;
+            ALTER DATABASE pgstactestdb SET log_statement to 'all';
+            ALTER DATABASE pgstactestdb SET client_min_messages to 'notice';
+            """
         )
     except asyncpg.exceptions.DuplicateDatabaseError:
         await conn.execute("DROP DATABASE pgstactestdb;")

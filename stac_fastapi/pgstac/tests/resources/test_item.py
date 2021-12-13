@@ -1,4 +1,3 @@
-import json
 import uuid
 from datetime import datetime, timedelta
 from typing import Callable
@@ -660,21 +659,23 @@ async def test_item_search_get_query_extension(
 
     # EPSG is a JSONB key
     params = {
+        "filter-lang": "cql-json",
         "collections": [test_item["collection"]],
-        "query": json.dumps(
-            {"proj:epsg": {"gt": test_item["properties"]["proj:epsg"] + 1}}
-        ),
+        "query": {"proj:epsg": {"eq": test_item["properties"]["proj:epsg"] + 1}},
     }
-    resp = await app_client.get("/search", params=params)
+    print(params)
+    resp = await app_client.post("/search", json=params)
+    print(resp.text)
     # No items found should still return a 200 but with an empty list of features
     assert resp.status_code == 200
     assert len(resp.json()["features"]) == 0
 
-    params["query"] = json.dumps(
-        {"proj:epsg": {"eq": test_item["properties"]["proj:epsg"]}}
-    )
-    resp = await app_client.get("/search", params=params)
+    params["query"] = {"proj:epsg": {"eq": test_item["properties"]["proj:epsg"]}}
+
+    print(params)
+    resp = await app_client.post("/search", json=params)
     resp_json = resp.json()
+    print(resp)
     assert len(resp.json()["features"]) == 1
     assert (
         resp_json["features"][0]["properties"]["proj:epsg"]
@@ -696,6 +697,7 @@ async def test_item_search_get_filter_extension_cql(
     # EPSG is a JSONB key
     params = {
         "collections": [test_item["collection"]],
+        "filter-lang": "cql-json",
         "filter": {
             "gt": [
                 {"property": "proj:epsg"},
@@ -711,6 +713,7 @@ async def test_item_search_get_filter_extension_cql(
 
     params = {
         "collections": [test_item["collection"]],
+        "filter-lang": "cql-json",
         "filter": {
             "eq": [
                 {"property": "proj:epsg"},
@@ -720,6 +723,78 @@ async def test_item_search_get_filter_extension_cql(
     }
     resp = await app_client.post("/search", json=params)
     resp_json = resp.json()
+    assert len(resp.json()["features"]) == 1
+    assert (
+        resp_json["features"][0]["properties"]["proj:epsg"]
+        == test_item["properties"]["proj:epsg"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_item_search_get_filter_extension_cql2(
+    app_client, load_test_data, load_test_collection
+):
+    """Test GET search with JSONB query (cql json filter extension)"""
+    test_item = load_test_data("test_item.json")
+    resp = await app_client.post(
+        f"/collections/{test_item['collection']}/items", json=test_item
+    )
+    assert resp.status_code == 200
+
+    # EPSG is a JSONB key
+    params = {
+        "filter-lang": "cql2-json",
+        "filter": {
+            "op": "and",
+            "args": [
+                {
+                    "op": "eq",
+                    "args": [
+                        {"property": "proj:epsg"},
+                        test_item["properties"]["proj:epsg"] + 1,
+                    ],
+                },
+                {
+                    "op": "in",
+                    "args": [
+                        {"property": "collection"},
+                        [test_item["collection"]],
+                    ],
+                },
+            ],
+        },
+    }
+    resp = await app_client.post("/search", json=params)
+    resp_json = resp.json()
+
+    assert resp.status_code == 200
+    assert len(resp_json.get("features")) == 0
+
+    params = {
+        "filter-lang": "cql2-json",
+        "filter": {
+            "op": "and",
+            "args": [
+                {
+                    "op": "eq",
+                    "args": [
+                        {"property": "proj:epsg"},
+                        test_item["properties"]["proj:epsg"],
+                    ],
+                },
+                {
+                    "op": "in",
+                    "args": [
+                        {"property": "collection"},
+                        [test_item["collection"]],
+                    ],
+                },
+            ],
+        },
+    }
+    resp = await app_client.post("/search", json=params)
+    resp_json = resp.json()
+    print(resp_json)
     assert len(resp.json()["features"]) == 1
     assert (
         resp_json["features"][0]["properties"]["proj:epsg"]

@@ -158,11 +158,14 @@ async def test_search_invalid_date(load_test_data, app_client, load_test_collect
     assert resp.status_code == 200
 
     params = {
+        "filter-lang": "cql-json",
         "datetime": "2020-XX-01/2020-10-30",
         "collections": [coll.id],
     }
+    print(params)
 
     resp = await app_client.post("/search", json=params)
+    print(resp.json())
     assert resp.status_code == 400
 
 
